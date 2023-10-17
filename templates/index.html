@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scrapy任务调度平台</title>
+    <!-- 加载 Bootstrap 样式表 -->
+    <link href="/static/plugins/bootstrap-3.4.1/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/plugins/font-awesome-4.7.0/css/font-awesome.min.css" rel="stylesheet">
+</head>
+<body>
+<!-- 确认删除模态框 -->
+<div class="modal fade" id="collectionDeleteModal" tabindex="-1" role="dialog" aria-labelledby="collectionDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="collectionDeleteModalLabel">确认删除</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                确定要删除此数据集吗？
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="collectionDeleteButton">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="scheduleModal" tabindex="-1" role="dialog" aria-labelledby="scheduleModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="scheduleModalLabel">创建定时任务</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="schedule-form">
+                    <div class="form-group">
+                        <label for="cron">Cron表达式</label>
+                        <input type="text" class="form-control" id="cron" name="cron" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="schedule-submit">确定任务</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="cancelTaskModal1" tabindex="-1" role="dialog" aria-labelledby="cancelTaskModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cancelTaskModalLabel">取消任务</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- 这里放置取消任务的确认信息 -->
+                <p>确认取消任务吗？</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-danger" id="confirmCancel">取消任务</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 确认模态框 -->
+<div class="modal fade" id="cancelTaskModal" tabindex="-1" role="dialog" aria-labelledby="cancelTaskModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cancelTaskModalLabel">取消定时任务</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                确认取消该定时任务吗？
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">返回</button>
+                <button type="button" class="btn btn-danger" id="confirmCancel1">！取消任务！</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container mt-5">
+    <h1>Scrapy任务调度平台</h1>
+
+    <ul class="nav nav-tabs" id="main-tabs">
+        <li class="nav-item">
+            <a class="nav-link active" id="upload-tab" data-toggle="tab" href="#upload" role="tab"
+               aria-controls="upload" aria-selected="true">上传脚本</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="show-scripts-tab" data-toggle="tab" href="#show-scripts" role="tab"
+               aria-controls="show-scripts" aria-selected="false">已上传脚本</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="running-tasks-tab" data-toggle="tab" href="#running-tasks" role="tab"
+               aria-controls="running-tasks" aria-selected="false">正在运行的爬虫任务</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="show-tasks-tab" data-toggle="tab" href="#show-tasks" role="tab"
+               aria-controls="show-tasks" aria-selected="false">定时任务</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="show-collections-tab" data-toggle="tab" href="#show-collections" role="tab"
+               aria-controls="show-collections" aria-selected="false">数据集</a>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="main-tab-content">
+        <div class="tab-pane fade" id="running-tasks" role="tabpanel" aria-labelledby="running-tasks-tab">
+            <!-- 这里将显示正在运行的非定时爬虫的信息 -->
+        </div>
+
+        <div class="tab-pane fade" id="show-tasks" role="tabpanel" aria-labelledby="show-tasks-tab">
+            <!-- 添加表格来展示任务 -->
+        </div>
+        <div class="tab-pane fade" id="upload" role="tabpanel" aria-labelledby="upload-tab">
+            <div class="modal fade" id="resultModal" tabindex="-1" role="dialog" aria-labelledby="resultModalLabel"
+                 aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="resultModalLabel">上传结果</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- 这里将显示返回的数据 -->
+                            <div id="modal-content"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">返回</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 上传脚本内容 -->
+            <h2>上传脚本</h2>
+            <form id="upload-form" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="crawl_name">Crawl Name</label>
+                    <input type="text" class="form-control" id="crawl_name" name="crawl_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="project_name">Project Name</label>
+                    <input type="text" class="form-control" id="project_name" name="project_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="command">Command</label>
+                    <input type="text" class="form-control" id="command" name="command" required>
+                </div>
+                <div class="form-group">
+                    <label for="table_name">Table Name</label>
+                    <input type="text" class="form-control" id="table_name" name="table_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="zip_file">Zip File</label>
+                    <input type="file" class="form-control-file" id="zip_file" name="zip_file" required>
+                </div>
+                <button type="submit" class="btn btn-primary" id="upload-button">上传脚本</button>
+            </form>
+        </div>
+
+
+        <div class="tab-pane fade" id="show-scripts" role="tabpanel" aria-labelledby="show-scripts-tab">
+            <!-- 展示当前脚本内容 -->
+            <!-- 显示当前脚本的内容 -->
+        </div>
+        <div class="tab-pane fade" id="show-collections" role="tabpanel" aria-labelledby="show-collections-tab">
+            <!-- 展示当前collections内容 -->
+            <!-- 显示当前collections的内容 -->
+        </div>
+    </div>
+</div>
+
+<!-- 加载 Bootstrap JavaScript 文件和 jQuery -->
+<script src="/static/js/jquery-3.7.1.min.js"></script>
+<script src="/static/plugins/bootstrap-3.4.1/js/bootstrap.min.js"></script>
+<script>
+    $(document).ready(function () {
+        // 监听第四个选项卡的点击事件
+        $('#show-collections-tab').on('click', function () {
+            // 发起GET请求调用/collections接口
+            $.get('/collections', function (data) {
+                if (data.collections) {
+                    // 创建一个div包含h2标签和表格
+                    var container = $('<div></div>');
+                    container.append('<h2 class="p-3">数据集</h2>');
+
+                    // 创建表格元素
+                    var table = $('<table class="table"></table>');
+
+                    // 创建表头
+                    var thead = $('<thead></thead>');
+                    var tr = $('<tr></tr>');
+                    tr.append('<th>Collection Name</th>');
+                    tr.append('<th>查看数据</th>');
+                    tr.append('<th>下载数据</th>');
+                    tr.append('<th>删除数据</th>');
+                    thead.append(tr);
+                    table.append(thead);
+
+                    // 创建表格内容
+                    var tbody = $('<tbody></tbody');
+                    data.collections.forEach(function (collection) {
+                        var tr = $('<tr></tr>');
+                        tr.append('<td>' + collection.collection_name + '</td>');
+                        tr.append('<td><a href="data_view?collection_name=' + collection.collection_name + '&collection_url=' + collection.collection_url + '"target="_blank"><i class="fa fa-link"></i> View Data</a></td>');
+                        tr.append('<td><a href="collection-data-csv?collection_name=' + collection.collection_name+'"target="_blank"><i class="fa fa-link"></i> Download Data</a></td>'); 
+                        tr.append('<td><button class="btn btn-danger delete-collection-button">Delete</button></td>');
+                        tbody.append(tr);
+                    });
+                    table.append(tbody);
+
+                    container.append(table);
+
+                    // 清空第四个选项卡的内容并插入容器
+                    $('#show-collections').empty().append(container);
+                } else {
+                    // 如果没有数据，显示提示信息
+                    $('#show-collections').html('<p>No collections found.</p>');
+                }
+            });
+        });
+    });
+// 监听删除按钮点击事件
+$('#show-collections').on('click', '.delete-collection-button', function () {
+    var collectionName = $(this).closest('tr').find('td:eq(0)').text();
+
+    // 显示确认删除模态框
+    $('#collectionDeleteModal').modal('show');
+
+    // 确认删除按钮点击事件
+    $('#collectionDeleteButton').on('click', function () {
+        // 发起删除数据集的请求，传递 collectionName
+        $.ajax({
+            url: '/delete-collection?collection_name=' + collectionName,
+            type: 'DELETE',
+            success: function (response) {
+                if (response.success) {
+                    // 删除成功后，刷新数据集列表或执行其他操作
+                    window.location.reload();
+                } else {
+                    // 处理删除失败的情况
+                    console.error('删除数据集失败');
+                }
+            },
+            error: function (xhr, status, error) {
+                // 处理请求错误
+                console.error('请求错误: ' + status + ' - ' + error);
+            }
+        });
+
+        // 隐藏确认删除模态框
+        $('#collectionDeleteModal').modal('hide');
+    });
+});
+
+
+
+
+    $('#scheduleModal').on('hidden.bs.modal', function () {
+        // 清空cron输入框的内容
+        $('#cron').val('');
+    });
+    $(document).ready(function () {
+        $('#main-tabs a').on('click', function (e) {
+            e.preventDefault();
+            $(this).tab('show');
+        });
+    });
+    $(document).ready(function () {
+        // 设置table_name的默认值
+        $("#crawl_name").on("input", function () {
+            var crawlNameValue = $(this).val();
+            $("#table_name").val("results_" + crawlNameValue);
+        });
+    });
+    $('#upload-button').on('click', function (e) {
+        e.preventDefault();
+
+        // 检查输入是否为空
+        if ($('#crawl_name').val() === '' || $('#project_name').val() === '' || $('#command').val() === '' || $('#table_name').val() === '' || !$('#zip_file')[0].files[0]) {
+            // 如果有任何一个输入为空，显示提示信息
+            $('#modal-content').html('Please fill in all the required fields.');
+            $('#resultModal').modal('show');
+        } else {
+            // 所有输入都不为空，发起POST请求调用上传接口
+            $.ajax({
+                type: 'POST',
+                url: '/upload-scrapy-project/',
+                data: new FormData($('#upload-form')[0]),
+                processData: false,
+                contentType: false,
+                success: function (data) {
+                    // 填充模态框内容
+                    $('#modal-content').html(data.message);
+
+                    // 显示模态框
+                    $('#resultModal').modal('show');
+                },
+                error: function (error) {
+                    // 处理错误情况
+                    $('#modal-content').html(error.responseJSON.error);
+
+                    // 显示模态框
+                    $('#resultModal').modal('show');
+                }
+            });
+        }
+    });
+
+    $(document).ready(function () {
+        // 监听第二个选项卡的点击事件
+        $('#show-scripts-tab').on('click', function () {
+            // 发起GET请求调用/show-scrapy-projects接口
+            $.get('/show-scrapy-projects', function (data) {
+                // 处理接口返回的JSON数据
+                if (data.scrapy_projects) {
+                    // 创建一个div包含h2标签和表格
+                    var container = $('<div></div>');
+                    container.append('<h2 class="p-3">调度任务</h2>');
+
+                    // 创建表格元素
+                    var table = $('<table class="table"></table>');
+
+                    // 创建表头
+                    var thead = $('<thead></thead>');
+                    var tr = $('<tr></tr>');
+                    tr.append('<th>Crawl Name</th>');
+                    tr.append('<th>Project Name</th>');
+                    tr.append('<th>Command</th>');
+                    tr.append('<th>Table Name</th>');
+                    tr.append('<th>操作</th>'); // 添加操作表头
+                    thead.append(tr);
+                    table.append(thead);
+
+                    // 创建表格内容
+                    var tbody = $('<tbody></tbody');
+                    data.scrapy_projects.forEach(function (project) {
+                        var tr = $('<tr></tr>');
+                        tr.append('<td>' + project.crawl_name + '</td>');
+                        tr.append('<td>' + project.project_name + '</td>');
+                        tr.append('<td>' + project.command + '</td>');
+                        tr.append('<td>' + project.table_name + '</td>');
+                        // 添加播放按钮列，包括播放按钮图标和链接
+                        var playButtonCell = '<td><a href="' + project.project_url + '"target="_blank"><i class="fa fa-play"></i></a></td>';
+                        tr.append(playButtonCell);
+                        // 添加定时启动按钮列，包括定时启动按钮图标和触发模态框
+                        var scheduleButtonCell = '<td><a href="#" class="schedule-job-button" data-project-url="' + project.project_url + '"><i class="fa fa-hourglass"></i></a></td>';
+                        tr.append(scheduleButtonCell);
+                        tbody.append(tr);
+                    });
+                    table.append(tbody);
+
+                    container.append(table);
+
+                    // 清空第二个选项卡的内容并插入容器
+                    $('#show-scripts').empty().append(container);
+
+                    // 监听定时启动按钮点击事件
+                    $('.schedule-job-button').click(function (e) {
+                        e.preventDefault();
+                        var projectUrl = $(this).data('project-url');
+                        $('#scheduleModal').modal('show');
+                        // 设置项目URL以便稍后使用
+                        $('#schedule-submit').data('project-url', projectUrl);
+                    });
+                } else {
+                    // 如果没有数据，显示提示信息
+                    $('#show-scripts').html('<p>No scrapy projects found.</p>');
+                }
+            });
+        });
+
+        // 监听定时启动模态框的提交按钮点击事件
+        $('#schedule-submit').click(function () {
+            var projectUrl = $(this).data('project-url');
+            var cron = $('#cron').val();
+            // 构建URL
+            var scheduleUrl = projectUrl + `?schedule_job=True&cron_schedule=${cron}`;
+            // 发起GET请求调用定时执行接口
+            $.get(scheduleUrl, function (data) {
+                if (data.error) {
+                    alert("Error scheduling Scrapy job: " + data.error);
+                } else {
+                    alert("Scrapy job scheduled successfully!");
+                }
+                $('#scheduleModal').modal('hide');
+            });
+        });
+    });
+    $(document).ready(function () {
+        // 监听第三个选项卡的点击事件
+        $('#show-tasks-tab').on('click', function () {
+            // 发起GET请求调用/get-scheduled-tasks接口
+            $.get('/get-scheduled-tasks', function (data) {
+                // 处理接口返回的JSON数据
+                if (data.tasks) {
+                    // 创建一个div包含h2标签和表格
+                    var container = $('<div></div>');
+                    container.append('<h2 class="p-3">定时任务列表</h2>');
+
+                    // 创建表格元素
+                    var table = $('<table class="table"></table>');
+
+                    // 创建表头
+                    var thead = $('<thead></thead>');
+                    var tr = $('<tr></tr>');
+                    tr.append('<th>ID</th>');
+                    tr.append('<th>Next Run Time</th>');
+                    tr.append('<th>Trigger Type</th>');
+                    tr.append('<th>Action</th>'); // 添加操作表头
+                    thead.append(tr);
+                    table.append(thead);
+
+                    // 创建表格内容
+                    var tbody = $('<tbody></tbody');
+                    data.tasks.forEach(function (task) {
+                        var tr = $('<tr></tr>');
+                        tr.append('<td>' + task.id + '</td>');
+                        tr.append('<td>' + task.next_run_time + '</td>');
+                        tr.append('<td>' + task.trigger_type + '</td>');
+                        // 添加操作列，包括取消按钮
+                        var actionCell = '<td><button class="btn btn-danger cancel-task-button" data-task-id="' + task.id + '">Cancel</button></td>';
+                        tr.append(actionCell);
+                        tbody.append(tr);
+                    });
+                    table.append(tbody);
+
+                    container.append(table);
+
+                    // 清空第三个选项卡的内容并插入容器
+                    $('#show-tasks').empty().append(container);
+                } else {
+                    // 如果没有任务数据，显示提示信息
+                    $('#show-tasks').html('<p>No scheduled tasks found.</p>');
+                }
+            });
+        });
+    });
+    $(document).ready(function () {
+        // 监听取消按钮点击事件
+        $('#show-tasks').on('click', '.cancel-task-button', function () {
+            var taskId = $(this).data('task-id');
+
+            // 弹出确认模态框
+            $('#cancelTaskModal').modal('show');
+
+            // 确认取消按钮点击事件
+            $('#confirmCancel1').on('click', function () {
+                // 发起GET请求调用/cancel-task/{task_id}接口来取消任务
+                $.get('/cancel-task/' + taskId, function (response) {
+                    // 刷新任务列表或显示提示信息，根据需要
+
+                    // 隐藏确认模态框
+                    $('#cancelTaskModal').modal('hide');
+                    window.location.reload();
+                });
+            });
+        });
+    });
+    $('#running-tasks-tab').on('click', function () {
+        // 发起GET请求调用/running-scrapy-projects接口
+        $.get('/running-scrapy-projects', function (data) {
+            if (data.running_scrapy_projects) {
+                // 创建一个div包含h2标签和列表
+                var container = $('<div></div>');
+                container.append('<h2 class="p-3">正在运行的爬虫任务</h2>');
+
+                // 创建无序列表用于显示正在运行的爬虫项目
+                var ul = $('<ul></ul>');
+                // 在正在运行的非定时爬虫列表项后添加取消任务按钮
+                data.running_scrapy_projects.forEach(function (project) {
+                    var li = $('<li></li>');
+                    li.text(project.dir_name);
+
+                    // 创建取消任务按钮
+                    var cancelTaskButton = $('<button class="btn btn-danger cancel-task-button">取消任务</button>');
+                    cancelTaskButton.data('dir-name', project.dir_name);
+
+                    // 将取消任务按钮添加到列表项
+                    li.append(cancelTaskButton);
+                    ul.append(li);
+                });
+
+
+                container.append(ul);
+
+                // 清空正在运行的爬虫选项卡的内容并插入容器
+                $('#running-tasks').empty().append(container);
+            } else {
+                // 如果没有正在运行的爬虫数据，显示提示信息
+                $('#running-tasks').html('<p>没有正在运行的非定时爬虫。</p>');
+            }
+        });
+    });
+    // 监听取消按钮点击事件
+    $('#running-tasks').on('click', '.cancel-task-button', function () {
+        var dirName = $(this).data('dir-name');
+
+        // 弹出确认模态框
+        $('#cancelTaskModal1').modal('show');
+
+        // 确认取消按钮点击事件
+        $('#confirmCancel').on('click', function () {
+            // 发起GET请求调用/cancel-scrapy-project/{dir_name}接口来取消任务
+            $.get('/cancel-scrapy-project?dir_name=' + dirName, function (response) {
+                // 刷新任务列表或显示提示信息，根据需要
+
+                // 隐藏确认模态框
+                $('#cancelTaskModal1').modal('hide');
+                window.location.reload();
+            });
+        });
+    });
+
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title id="collection-title"></title>
+    <link rel="stylesheet" href="/static/plugins/bootstrap-3.4.1/css/bootstrap.min.css">
+
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+<h2 id="collection-heading"></h2>
+<div id="page-info">
+</div>
+
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <!-- 表头将在JavaScript中动态生成 -->
+    </tr>
+    </thead>
+    <tbody>
+    <!-- 表格内容将在JavaScript中动态生成 -->
+    </tbody>
+</table>
+<nav>
+    <ul class="pagination" id="pagination">
+        <!-- 分页按钮将在JavaScript中动态生成 -->
+    </ul>
+</nav>
+<script src="/static/js/jquery-3.7.1.min.js"></script>
+<script src="/static/plugins/bootstrap-3.4.1/js/bootstrap.min.js"></script>
+<script>
+    function clearPageInfo() {
+        var pageInfoDiv = document.getElementById('page-info');
+        while (pageInfoDiv.firstChild) {
+            pageInfoDiv.removeChild(pageInfoDiv.firstChild);
+        }
+    }
+
+    function updatePageInfo() {
+        var pageInfoDiv = document.getElementById('page-info');
+        var pageInfoText = 'Page ' + currentPage + ' of ' + totalPages;
+        var pageInfoElement = document.createElement('p');
+        pageInfoElement.innerText = pageInfoText;
+        pageInfoDiv.appendChild(pageInfoElement);
+    }
+
+    // 提取URL参数
+    function getParameterByName(name, url) {
+        if (!url) url = window.location.href;
+        name = name.replace(/[\[\]]/g, '\\$&');
+        var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
+            results = regex.exec(url);
+        if (!results) return null;
+        if (!results[2]) return '';
+        return decodeURIComponent(results[2].replace(/\+/g, ' '));
+    }
+
+    var table = $('.table');
+    var tableBody = table.find('tbody');
+    var pagination = $('#pagination');
+    var itemsPerPage = 10;
+    var currentPage = 1;
+    var totalPages = 1;
+    var collectionName = getParameterByName('collection_name');
+    var collectionUrl = getParameterByName('collection_url');
+    var jsonData; // 用于存储JSON数据
+
+    // 设置标题和h2标签
+    if (collectionName) {
+        document.title = collectionName;
+        document.getElementById('collection-heading').innerText = collectionName;
+    } else {
+        console.error('Collection name is missing in the URL.');
+    }
+
+    // 生成表头
+    function createTableHeader(data) {
+        var headerRow = table.find('thead tr');
+        for (var key in data[0]) {
+            var headerCell = $('<th></th>').text(key);
+            headerCell.data('key', key); // 存储键值以备后用
+            headerRow.append(headerCell);
+        }
+    }
+
+    // 修改 updateTable 函数，仅更新表格内容
+    function updateTable(data, page) {
+        console.log('Collection Name:', data);
+        tableBody.empty();
+        for (var i = 0; i < 10; i++) {
+            if (i < data.length) {
+                var row = $('<tr></tr>');
+                var headerCells = table.find('thead th');
+                headerCells.each(function () {
+                    var key = $(this).data('key');
+                    var cell = $('<td></td>').text(data[i][key]);
+                    row.append(cell);
+                });
+                console.log('Collection Name:', row);
+                tableBody.append(row);
+            }
+        }
+    }
+
+    // 创建分页按钮
+    function createPagination() {
+        pagination.empty();
+        for (var i = 1; i <= totalPages; i++) {
+            var listItem = $('<li class="page-item"></li>');
+            var pageLink = $('<a class="page-link"></a>').text(i);
+            if (i === currentPage) {
+                // 如果页码与当前页相等，添加 Bootstrap 的 active 类
+                listItem.addClass('active');
+            }
+            pageLink.click(function () {
+                var pageNumber = parseInt($(this).text());
+                handlePageClick(pageNumber);
+            });
+            listItem.append(pageLink);
+            pagination.append(listItem);
+        }
+    }
+
+
+    // 获取JSON数据并初始化表格和分页
+    fetch(collectionUrl)
+        .then(response => response.json())
+        .then(data => {
+            jsonData = data;
+            totalPages = jsonData.total_pages;
+            createTableHeader(jsonData.collection_data);
+            updateTable(jsonData.collection_data, currentPage);
+            createPagination();
+            updatePageInfo();
+        })
+        .catch(error => console.error('Error:', error));
+
+    // 获取分页按钮点击事件的处理程序
+    function handlePageClick(pageNumber) {
+        currentPage = pageNumber; // 更新当前页
+
+        // 构建带有页码参数的URL
+        var updatedCollectionUrl = collectionUrl + '&page=' + currentPage;
+
+        // 发送请求以获取新页的数据
+        fetch(updatedCollectionUrl)
+            .then(response => response.json())
+            .then(data => {
+                jsonData = data;
+                updateTable(jsonData.collection_data, currentPage);
+                createPagination();
+                window.scrollTo(0, 0);
+                clearPageInfo();
+                updatePageInfo();
+            })
+            .catch(error => console.error('Error:', error));
+    }
+</script>
+</body>
+</html>
