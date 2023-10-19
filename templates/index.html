@@ -60,18 +60,40 @@
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="cancelTaskModalLabel">取消任务</h5>
+                <h5 class="modal-title" id="cancelTaskModalLabel">终止任务</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
                 <!-- 这里放置取消任务的确认信息 -->
-                <p>确认取消任务吗？</p>
+                <p>确认终止任务吗？</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
-                <button type="button" class="btn btn-danger" id="confirmCancel">取消任务</button>
+                <button type="button" class="btn btn-danger" id="confirmCancel">终止任务</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 确认模态框 -->
+<div class="modal fade" id="cancelWaitingProjectModal" tabindex="-1" role="dialog" aria-labelledby="cancelTaskModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cancelTaskModalLabel">取消任务</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                确认取消该任务吗？
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">返回</button>
+                <button type="button" class="btn btn-danger" id="confirmCancelWaitingProject">！取消任务！</button>
             </div>
         </div>
     </div>
@@ -113,7 +135,7 @@
         </li>
         <li class="nav-item">
             <a class="nav-link" id="running-tasks-tab" data-toggle="tab" href="#running-tasks" role="tab"
-               aria-controls="running-tasks" aria-selected="false">正在运行的爬虫任务</a>
+               aria-controls="running-tasks" aria-selected="false">爬虫任务</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" id="show-tasks-tab" data-toggle="tab" href="#show-tasks" role="tab"
@@ -480,61 +502,142 @@ $('#show-collections').on('click', '.delete-collection-button', function () {
             });
         });
     });
-    $('#running-tasks-tab').on('click', function () {
-        // 发起GET请求调用/running-scrapy-projects接口
-        $.get('/running-scrapy-projects', function (data) {
-            if (data.running_scrapy_projects) {
-                // 创建一个div包含h2标签和列表
-                var container = $('<div></div>');
-                container.append('<h2 class="p-3">正在运行的爬虫任务</h2>');
+var autoUpdateInterval; // 用于存储定时器ID
 
-                // 创建无序列表用于显示正在运行的爬虫项目
-                var ul = $('<ul></ul>');
-                // 在正在运行的非定时爬虫列表项后添加取消任务按钮
-                data.running_scrapy_projects.forEach(function (project) {
-                    var li = $('<li></li>');
-                    li.text(project.dir_name);
+function updateRunningScrapyProjects() {
+    // 发起GET请求调用/running-scrapy-projects接口
+    $.get('/running-scrapy-projects', function (data) {
+        if (data.running_scrapy_projects) {
+            // 创建一个div包含h2标签和表格
+            var container = $('<div></div>');
+            container.append('<h2 class="p-3">正在运行的爬虫任务</h2');
 
-                    // 创建取消任务按钮
-                    var cancelTaskButton = $('<button class="btn btn-danger cancel-task-button">取消任务</button>');
-                    cancelTaskButton.data('dir-name', project.dir_name);
-
-                    // 将取消任务按钮添加到列表项
-                    li.append(cancelTaskButton);
-                    ul.append(li);
-                });
-
-
-                container.append(ul);
-
-                // 清空正在运行的爬虫选项卡的内容并插入容器
-                $('#running-tasks').empty().append(container);
-            } else {
-                // 如果没有正在运行的爬虫数据，显示提示信息
-                $('#running-tasks').html('<p>没有正在运行的非定时爬虫。</p>');
-            }
-        });
-    });
-    // 监听取消按钮点击事件
-    $('#running-tasks').on('click', '.cancel-task-button', function () {
-        var dirName = $(this).data('dir-name');
-
-        // 弹出确认模态框
-        $('#cancelTaskModal1').modal('show');
-
-        // 确认取消按钮点击事件
-        $('#confirmCancel').on('click', function () {
-            // 发起GET请求调用/cancel-scrapy-project/{dir_name}接口来取消任务
-            $.get('/cancel-scrapy-project?dir_name=' + dirName, function (response) {
-                // 刷新任务列表或显示提示信息，根据需要
-
-                // 隐藏确认模态框
-                $('#cancelTaskModal1').modal('hide');
-                window.location.reload();
+            // 创建表格
+            var table = $('<table class="table table-bordered table-hover"></table>');
+            table.append('<thead><tr><th>projects_name</th><th>操作</th></tr></thead>');
+            var tbody = $('<tbody></tbody>');
+            data.running_scrapy_projects.forEach(function (project) {
+                var tr = $('<tr></tr>');
+                tr.append('<td>' + project.dir_name + '</td>');
+                var td = $('<td></td>');
+                var cancelTaskButton = $('<button class="btn btn-danger cancel-task-button" id="cancel_running_project">终止任务</button>');
+                cancelTaskButton.data('dir-name', project.dir_name);
+                td.append(cancelTaskButton);
+                tr.append(td);
+                tbody.append(tr);
             });
+
+            table.append(tbody);
+            container.append(table);
+
+            // 清空正在运行的爬虫选项卡的内容并插入容器
+            $('#running-tasks').empty().append(container);
+        } else {
+            // 如果没有正在运行的爬虫数据，显示提示信息
+            $('#running-tasks').html('<p>没有正在运行的非定时爬虫。</p>');
+        }
+
+        if (data.waiting_scrapy_projects) {
+            // 创建一个div包含h2标签和表格，用于等待运行的爬虫信息
+            var waitingContainer = $('<div></div>');
+            waitingContainer.append('<h2 class="p-3">等待运行的爬虫任务</h2');
+
+            // 创建表格
+            var waitingTable = $('<table class="table table-bordered table-hover"></table>');
+            waitingTable.append('<thead><tr><th>projects_name</th><th>操作</th></tr></thead>');
+            var waitingTbody = $('<tbody></tbody>');
+            data.waiting_scrapy_projects.forEach(function (project) {
+                var tr = $('<tr></tr>');
+                tr.append('<td>' + project.dir_name + '</td>');
+                var td = $('<td></td>');
+                var cancelTaskButton = $('<button class="btn btn-danger cancel-task-button" id="cancel_waiting_project">取消任务</button>');
+                cancelTaskButton.data('dir-name', project.dir_name);
+                td.append(cancelTaskButton);
+                tr.append(td);
+                waitingTbody.append(tr);
+            });
+
+            waitingTable.append(waitingTbody);
+            waitingContainer.append(waitingTable);
+
+            // 清空等待运行的爬虫选项卡的内容并插入容器
+            $('#running-tasks').append(waitingContainer);
+        } else {
+            // 如果没有等待运行的爬虫数据，显示提示信息
+            $('#running-tasks').html('<p>没有等待运行的爬虫。</p>');
+        }
+    });
+}
+
+
+$(document).ready(function () {
+    $('#running-tasks-tab').on('click', function () {
+        updateRunningScrapyProjects();
+    });
+});
+
+
+var autoUpdateInterval; // 用于存储定时器ID
+var autoUpdateStarted = false; // 用于跟踪是否已经启动了自动更新
+
+// 监听选项卡切换事件
+$('.nav-link').on('click', function () {
+    var tabId = $(this).attr('id');
+    
+    if (tabId === 'running-tasks-tab') {
+        // 如果是running-tasks-tab并且自动更新尚未启动，启动自动更新
+        if (!autoUpdateStarted) {
+            autoUpdateInterval = setInterval(updateRunningScrapyProjects, 10000);
+            autoUpdateStarted = true;
+        }
+    } else {
+        // 如果不是running-tasks-tab，停止自动更新
+        clearInterval(autoUpdateInterval);
+        autoUpdateStarted = false;
+    }
+});
+
+
+
+// 监听取消按钮点击事件
+$('#running-tasks').on('click', '#cancel_running_project', function () {
+    var dirName = $(this).data('dir-name');
+
+    // 弹出确认模态框
+    $('#cancelTaskModal1').modal('show');
+
+    // 确认取消按钮点击事件
+    $('#confirmCancel').on('click', function () {
+        // 发起GET请求调用/cancel-scrapy-project/{dir_name}接口来取消任务
+        $.get('/cancel-scrapy-project?dir_name=' + dirName, function (response) {
+            // 刷新任务列表或显示提示信息，根据需要
+
+            // 隐藏确认模态框
+            $('#cancelTaskModal1').modal('hide');
+            updateRunningScrapyProjects();
         });
     });
+});
 
+// 监听取消按钮点击事件
+$('#running-tasks').on('click', '#cancel_waiting_project', function () {
+    var dirName = $(this).data('dir-name');
+
+    // 弹出确认模态框
+    $('#cancelWaitingProjectModal').modal('show');
+
+    // 确认取消按钮点击事件
+    $('#confirmCancelWaitingProject').on('click', function () {
+        // 发起GET请求调用/cancel-scrapy-project/{dir_name}接口来取消任务
+        $.get('/cancel-waiting-project?dir_name=' + dirName, function (response) {
+            // 刷新任务列表或显示提示信息，根据需要
+
+            // 隐藏确认模态框
+            $('#cancelWaitingProjectModal').modal('hide');
+            updateRunningScrapyProjects();
+        });
+    });
+});
 
 </script>
 
