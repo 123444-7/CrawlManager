@@ -5,16 +5,18 @@ import pymongo
 import shutil
 import multiprocessing
 import psutil
+import time
 import csv
 import tempfile
+import threading
+from queue import Queue
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, status
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from io import BytesIO
 from apscheduler.triggers.cron import CronTrigger
-from concurrent.futures import ThreadPoolExecutor
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 
@@ -28,19 +30,21 @@ app.add_middleware(
 )
 
 # 连接到MongoDB服务器
-client = pymongo.MongoClient("mongodb://username:password@host:port/?authSource=admin")
+client = pymongo.MongoClient("mongodb://userName:pwd@host:post/?authSource=admin")
 
 db = client["test"]
 tasks_collection = db['scheduled_tasks']
-
+manager = multiprocessing.Manager()
+max_concurrent_processes = 1
+semaphore = manager.Semaphore(max_concurrent_processes)
 scheduler = BackgroundScheduler()
 scheduler.start()
-max_concurrent_tasks = 5
-executor = ThreadPoolExecutor(max_concurrent_tasks)
 task_processes = {}
 static_path = os.path.join(os.getcwd(), "templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 current_directory = os.getcwd()
+task_queue = Queue(maxsize=1)
+queue_list = []
 
 
 @app.get("/collection-data-csv", response_class=FileResponse)
@@ -123,6 +127,8 @@ def unzip_project(zip_path, project_name):
 
 def insert_scrapy_project_info(dir_name, crawl_name, project_name, command, table_name):
     project_url = f"/run-scrapy-project/{dir_name}"
+    if command.startswith("[") and command.endswith("]"):
+        command = command.replace("[", "").replace("]", "").split(",")
     # 定义爬虫信息
     scrapy_project = {
         "dir_name": dir_name,
@@ -199,6 +205,16 @@ def terminate_process_tree(process):
         pass  # 进程不存在
 
 
+@app.get("/cancel-waiting-project")
+def cancel_waiting_project(dir_name: str):
+    waiting_projects = queue_list
+    for project in waiting_projects:
+        tmp = project[0] + "_" + project[1]
+        if dir_name == tmp:
+            queue_list.remove(project)
+            return {"message": f"Project with dir_name {dir_name} and its child processes have been terminated."}
+
+
 @app.get("/cancel-scrapy-project")
 def cancel_scrapy_project(dir_name: str):
     if dir_name not in task_processes:
@@ -220,6 +236,11 @@ def cancel_scrapy_project(dir_name: str):
 @app.get("/running-scrapy-projects")
 def get_running_scrapy_projects():
     running_projects = []
+    waiting_projects = []
+    for project in queue_list:
+        project_dict = {}
+        project_dict['dir_name'] = project[0] + "_" + project[1]
+        waiting_projects.append(project_dict)
 
     for dir_name, process in task_processes.copy().items():
         if not process.is_alive():
@@ -229,7 +250,7 @@ def get_running_scrapy_projects():
             # 任务仍在运行
             running_projects.append({"dir_name": dir_name})
 
-    return {"running_scrapy_projects": running_projects}
+    return {"running_scrapy_projects": running_projects, "waiting_scrapy_projects": waiting_projects}
 
 
 def run_scrapy_command(dir_name, command, process_dict):
@@ -245,11 +266,20 @@ def run_scrapy_command(dir_name, command, process_dict):
         os.chdir(current_directory)
 
 
+def execute_scrapy_task(dir_name, command, task_processes):
+    with semaphore:
+        process = multiprocessing.Process(target=run_scrapy_command, args=(dir_name, command, task_processes))
+        task_processes[dir_name + "_" + command] = process
+        process.start()
+
+
 @app.get("/run-scrapy-project/{dir_name}/")
 def run_scrapy_project(dir_name: str, schedule_job: bool = False, cron_schedule: str = None):
+    get_running_scrapy_projects()
     # 用dir_name获取项目信息
     collection = db["scrapy_projects"]
     project_info = collection.find_one({"dir_name": dir_name})
+    command = project_info.get("command")
     if project_info is None:
         return JSONResponse(content={"error": f"Project with dir_name {dir_name} not found."}, status_code=404)
 
@@ -260,20 +290,22 @@ def run_scrapy_project(dir_name: str, schedule_job: bool = False, cron_schedule:
 
     if not schedule_job:
         # 如果不是定时任务，立即运行主要命令
-        if dir_name in task_processes:
-            return {"error": "Task already running."}
-
-        command = project_info.get("command")
         if command is None:
             return {"error": "Scrapy project not found."}
+        if isinstance(command, list):
+            for com in command:
+                if (dir_name + "_" + com) in task_processes:
+                    return {"error": "Task already running."}
+                # 将任务添加到队列中
+                task_queue.put((dir_name, com))
+            return {"message": "Scrapy project execution started successfully."}
+        else:
+            if (dir_name + "_" + command) in task_processes:
+                return {"error": "Task already running."}
+            # 将任务添加到队列中
+            task_queue.put((dir_name, command))
+            return {"message": "Scrapy project execution started successfully."}
 
-        # 创建一个新进程来运行Scrapy任务
-        process = multiprocessing.Process(target=run_scrapy_command, args=(dir_name, command, task_processes))
-        process.start()
-        os.chdir(current_directory)
-        task_processes[dir_name] = process
-
-        return {"message": "Scrapy project execution started successfully."}
     else:
         # 如果是定时任务，添加定时任务到调度器
         try:
@@ -381,3 +413,29 @@ def cancel_task(task_id: str):
 
 # 在应用启动时加载已存储的任务
 load_tasks_from_mongodb()
+
+
+def process_task_queue():
+    while True:
+        if not task_queue.empty():
+            dir_name, command = task_queue.get()
+            task_list = [dir_name, command]
+            queue_list.append(task_list)
+        if len(task_processes) < 3 and queue_list:
+            dir_name, command = queue_list.pop(0)
+            execute_scrapy_task(dir_name, command, task_processes)
+
+
+# 启动处理任务队列的线程
+task_queue_thread = threading.Thread(target=process_task_queue)
+task_queue_thread.start()
+
+
+def loading():
+    while True:
+        get_running_scrapy_projects()
+        time.sleep(10)
+
+
+loading_thread = threading.Thread(target=loading)
+loading_thread.start()
